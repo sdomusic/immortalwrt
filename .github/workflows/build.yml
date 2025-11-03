@@ -53,7 +53,7 @@ jobs:
         run: |
           cd immortalwrt
           CONFIG_FILE=".config"
-          cat <<EOF > $CONFIG_FILE
+          cat <<EOF >$CONFIG_FILE
 CONFIG_TARGET_x86=y
 CONFIG_TARGET_x86_64=y
 CONFIG_TARGET_x86_64_Generic=y
