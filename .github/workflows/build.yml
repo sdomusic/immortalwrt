@@ -9,13 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      TZ: Asia/Shanghai
-      REPO_URL: https://github.com/immortalwrt/immortalwrt
-      REPO_BRANCH: openwrt-23.05
-      CONFIG_FILE: configs/my.config
-      DIY_SCRIPT: scripts/diy.sh
-      UCI_DEFAULTS_SCRIPT: scripts/expand_overlay.sh
 
     steps:
       - name: Checkout Repo
@@ -26,7 +19,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           df -h
 
-      - name: Install Build Dependencies
+      - name: Install Dependencies
         run: |
           sudo apt update
           sudo apt install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
@@ -34,33 +27,45 @@ jobs:
 
       - name: Clone ImmortalWrt Source
         run: |
-          git clone --depth=1 $REPO_URL -b $REPO_BRANCH immortalwrt
+          git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b openwrt-23.05 immortalwrt
           cd immortalwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Custom Config & DIY
+      - name: Apply DIY Script
         run: |
           cd immortalwrt
-          [ -f ../$DIY_SCRIPT ] && bash ../$DIY_SCRIPT || echo "No DIY script"
-          [ -f ../$CONFIG_FILE ] && cp ../$CONFIG_FILE .config
+          if [ -f ../scripts/diy.sh ]; then
+            bash ../scripts/diy.sh
+          else
+            echo "No DIY script found"
+          fi
+
+      - name: Apply Custom Config
+        run: |
+          cd immortalwrt
+          if [ -f ../configs/my.config ]; then
+            cp ../configs/my.config .config
+          else
+            echo "No custom config found"
+          fi
           make defconfig
 
-      - name: Add Auto Expand Script (uci-defaults)
+      - name: Add Auto Expand Overlay Script
         run: |
-          mkdir -p immortalwrt/package/base-files/files/etc/uci-defaults
-          cat > immortalwrt/package/base-files/files/etc/uci-defaults/99-expand-overlay <<'EOF'
-          #!/bin/sh
-          # 自动扩容 overlay 到整盘空间
-          ROOT_DISK=$(find /dev -maxdepth 1 -name "sd*" | grep -v "[0-9]$")
-          if [ -n "$ROOT_DISK" ]; then
-              PART=$(lsblk -lnpo NAME,TYPE "$ROOT_DISK" | awk '$2=="part"{print $1}' | tail -n1)
-              resize2fs "$PART" >/dev/null 2>&1
-          fi
-          EOF
-          chmod +x immortalwrt/package/base-files/files/etc/uci-defaults/99-expand-overlay
+          cd immortalwrt
+          mkdir -p package/base-files/files/etc/uci-defaults
+          cat > package/base-files/files/etc/uci-defaults/99-expand-overlay <<'EOF'
+#!/bin/sh
+ROOT_DISK=$(find /dev -maxdepth 1 -name "sd*" | grep -v "[0-9]$")
+if [ -n "$ROOT_DISK" ]; then
+    PART=$(lsblk -lnpo NAME,TYPE "$ROOT_DISK" | awk '$2=="part"{print $1}' | tail -n1)
+    resize2fs "$PART" >/dev/null 2>&1
+fi
+EOF
+          chmod +x package/base-files/files/etc/uci-defaults/99-expand-overlay
 
-      - name: Start Build
+      - name: Build Firmware
         run: |
           cd immortalwrt
           make -j$(nproc) || make -j1 V=s
@@ -79,5 +84,3 @@ jobs:
 
       - name: Show Build Size
         run: du -h immortalwrt/bin/targets | sort -h | tail -n 10
-        [ -f ../scripts/diy.sh ] && bash ../scripts/diy.sh || echo "No DIY script"
-
