@@ -79,3 +79,5 @@ jobs:
 
       - name: Show Build Size
         run: du -h immortalwrt/bin/targets | sort -h | tail -n 10
+        [ -f ../scripts/diy.sh ] && bash ../scripts/diy.sh || echo "No DIY script"
+
