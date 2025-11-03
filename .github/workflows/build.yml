@@ -48,6 +48,9 @@ jobs:
           cd immortalwrt
           make distclean || true
 
+      - name: Make build_config.sh Executable
+        run: chmod +x build_config.sh
+
       - name: Apply Custom Config
         run: ./build_config.sh
 
