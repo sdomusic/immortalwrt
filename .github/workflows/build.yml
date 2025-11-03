@@ -1,13 +1,41 @@
-name: Test Workflow
+name: ImmortalWrt Build Safe
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout
+      # 1️⃣ Checkout 仓库
+      - name: Checkout Repo
         uses: actions/checkout@v4
-      - name: Hello
-        run: echo "GitHub Actions YAML is valid"
+
+      # 2️⃣ 测试运行环境
+      - name: Test Environment
+        run: |
+          echo "GitHub Actions YAML is valid"
+          uname -a
+          df -h
+
+      # 3️⃣ 安装依赖（可先不启用完整依赖，先测试解析）
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential git python3-pip
+
+      # 4️⃣ 克隆 ImmortalWrt 源码（仅测试）
+      - name: Clone ImmortalWrt Source
+        run: |
+          git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b openwrt-23.05 immortalwrt
+          cd immortalwrt
+          ls -l
+
+      # 5️⃣ 测试打印成功信息
+      - name: Build Test Complete
+        run: |
+          echo "ImmortalWrt basic workflow parsed successfully"
