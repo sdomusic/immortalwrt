@@ -1,4 +1,4 @@
-name: ImmortalWrt Build x86_64 2048MB (v24.10.4)
+name: ImmortalWrt Build x86_64 Pure (v24.10.4)
 
 on:
   workflow_dispatch:
@@ -35,29 +35,25 @@ jobs:
             rsync unzip zlib1g-dev file wget pkg-config bc u-boot-tools
 
       - name: Clone ImmortalWrt v24.10.4
-        run: git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b v24.10.4 immortalwrt
+        run: |
+          git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b v24.10.4 immortalwrt
 
       - name: Update and Install Feeds
         run: |
           cd immortalwrt
+          ./scripts/feeds clean
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Clean Build Directory
+      - name: Apply Pure Config
         run: |
-          cd immortalwrt
-          make distclean || true
-
-      - name: Make build_config.sh Executable
-        run: chmod +x build_config.sh
-
-      - name: Apply Custom Config
-        run: ./build_config.sh
+          chmod +x build_config.sh
+          ./build_config.sh
 
       - name: Build Firmware
         run: |
           cd immortalwrt
-          make -j2 || make -j1 V=s
+          make -j$(nproc) || make -j1 V=s
 
       - name: Generate Checksums
         run: |
@@ -68,8 +64,8 @@ jobs:
       - name: Upload Firmware and Checksums
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v24.10.4-${{ github.run_number }}"
-          name: "ImmortalWrt v24.10.4 Build #${{ github.run_number }}"
+          tag_name: "v24.10.4-pure-${{ github.run_number }}"
+          name: "ImmortalWrt v24.10.4 Pure Build #${{ github.run_number }}"
           files: |
             immortalwrt/bin/targets/**/*.img.gz
             immortalwrt/bin/targets/**/*.bin
