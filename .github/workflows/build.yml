@@ -27,22 +27,33 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-immortalwrt-ccache-
 
-      # 3️⃣ 安装基础依赖
+      # 3️⃣ 安装基础依赖（增加 python3-distutils / setuptools）
       - name: Install Dependencies
         run: |
           sudo apt update
           sudo apt install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
-            gettext git libncurses5-dev libssl-dev python3-pip rsync unzip zlib1g-dev file wget
+            gettext git libncurses5-dev libssl-dev python3-pip rsync unzip zlib1g-dev file wget \
+            python3-distutils python3-setuptools
 
       # 4️⃣ 克隆 ImmortalWrt 源码
       - name: Clone ImmortalWrt Source
         run: |
           git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b openwrt-23.05 immortalwrt
+
+      # 5️⃣ 更新并安装 feeds
+      - name: Update and Install Feeds
+        run: |
           cd immortalwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      # 5️⃣ 应用自定义配置文件（固定 2048MB 根分区）
+      # 6️⃣ 清理残留缓存（可选保险步骤）
+      - name: Clean Build Directory
+        run: |
+          cd immortalwrt
+          make distclean || true
+
+      # 7️⃣ 应用自定义配置文件（固定 2048MB 根分区）
       - name: Apply Custom Config
         run: |
           cd immortalwrt
@@ -72,20 +83,20 @@ jobs:
           fi
           make defconfig
 
-      # 6️⃣ 编译固件
+      # 8️⃣ 编译固件
       - name: Build Firmware
         run: |
           cd immortalwrt
           make -j$(nproc) || make -j1 V=s
 
-      # 7️⃣ 生成 SHA256 校验文件
+      # 9️⃣ 生成 SHA256 校验文件
       - name: Generate Checksums
         run: |
           cd immortalwrt/bin/targets
           find . -type f \( -name "*.img.gz" -o -name "*.bin" \) -exec sha256sum {} \; > sha256sums.txt
           cat sha256sums.txt
 
-      # 8️⃣ 上传 Release（固件 + 校验文件）
+      # 🔟 上传 Release（固件 + 校验文件）
       - name: Upload Firmware and Checksums
         uses: softprops/action-gh-release@v1
         with:
@@ -99,6 +110,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 9️⃣ 查看编译产物大小
+      # 11️⃣ 查看编译产物大小
       - name: Show Build Size
         run: du -h immortalwrt/bin/targets | sort -h | tail -n 10
