@@ -1,4 +1,4 @@
-name: ImmortalWrt Build Full
+name: ImmortalWrt Build x86_64 2048MB
 
 on:
   workflow_dispatch:
@@ -11,20 +11,30 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       TZ: Asia/Shanghai
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
       # 1️⃣ Checkout 仓库
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      # 2️⃣ 安装基础依赖
+      # 2️⃣ 设置 ccache 缓存
+      - name: Setup CCache
+        uses: actions/cache@v3
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-immortalwrt-ccache-${{ hashFiles('configs/my.config') }}
+          restore-keys: |
+            ${{ runner.os }}-immortalwrt-ccache-
+
+      # 3️⃣ 安装基础依赖
       - name: Install Dependencies
         run: |
           sudo apt update
           sudo apt install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
             gettext git libncurses5-dev libssl-dev python3-pip rsync unzip zlib1g-dev file wget
 
-      # 3️⃣ 克隆 ImmortalWrt 源码
+      # 4️⃣ 克隆 ImmortalWrt 源码
       - name: Clone ImmortalWrt Source
         run: |
           git clone --depth=1 https://github.com/immortalwrt/immortalwrt.git -b openwrt-23.05 immortalwrt
@@ -32,49 +42,52 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      # 4️⃣ 执行 DIY 脚本（可自定义默认 IP、主机名、主题等）
-      - name: Apply DIY Script
-        run: |
-          cd immortalwrt
-          if [ -f ../scripts/diy.sh ]; then
-            bash ../scripts/diy.sh
-          else
-            echo "No DIY script found"
-          fi
-
-      # 5️⃣ 应用自定义配置文件
+      # 5️⃣ 应用自定义配置文件（固定 2048MB 根分区）
       - name: Apply Custom Config
         run: |
           cd immortalwrt
           if [ -f ../configs/my.config ]; then
             cp ../configs/my.config .config
           else
-            echo "No custom config found"
+            echo "No custom config found, using default minimal config"
+            cat > .config <<EOF
+CONFIG_TARGET_x86=y
+CONFIG_TARGET_x86_64=y
+CONFIG_TARGET_x86_64_Generic=y
+CONFIG_TARGET_ROOTFS_PARTSIZE=2048
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-app-firewall=y
+CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y
+CONFIG_PACKAGE_luci-app-opkg=y
+CONFIG_PACKAGE_luci-theme-bootstrap=y
+CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+CONFIG_PACKAGE_htop=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_wget=y
+CONFIG_PACKAGE_block-mount=y
+CONFIG_PACKAGE_kmod-fs-ext4=y
+CONFIG_PACKAGE_kmod-usb-storage=y
+CONFIG_PACKAGE_luci-app-openclash=y
+CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y
+EOF
           fi
           make defconfig
 
-      # 6️⃣ 添加自动扩容 overlay 脚本（已修复 YAML 不兼容问题）
-      - name: Add Auto Expand Overlay Script
-        run: |
-          cd immortalwrt
-          mkdir -p package/base-files/files/etc/uci-defaults
-          SCRIPT_PATH="package/base-files/files/etc/uci-defaults/99-expand-overlay"
-          echo '#!/bin/sh' > $SCRIPT_PATH
-          echo 'ROOT_DISK=$(find /dev -maxdepth 1 -name "sd*" | grep -v "[0-9]$")' >> $SCRIPT_PATH
-          echo 'if [ -n "$ROOT_DISK" ]; then' >> $SCRIPT_PATH
-          echo '    PART=$(lsblk -lnpo NAME,TYPE "$ROOT_DISK" | awk '\''$2=="part"{print $1}'\'' | tail -n1)' >> $SCRIPT_PATH
-          echo '    resize2fs "$PART" >/dev/null 2>&1' >> $SCRIPT_PATH
-          echo 'fi' >> $SCRIPT_PATH
-          chmod +x $SCRIPT_PATH
-
-      # 7️⃣ 开始编译
+      # 6️⃣ 编译固件
       - name: Build Firmware
         run: |
           cd immortalwrt
           make -j$(nproc) || make -j1 V=s
 
-      # 8️⃣ 上传固件到 GitHub Release
-      - name: Upload Firmware to Release
+      # 7️⃣ 输出镜像校验
+      - name: Generate Checksums
+        run: |
+          cd immortalwrt/bin/targets
+          find . -type f \( -name "*.img.gz" -o -name "*.bin" \) -exec sha256sum {} \; > sha256sums.txt
+          cat sha256sums.txt
+
+      # 8️⃣ 上传 Release（并行上传镜像 + 校验文件）
+      - name: Upload Firmware and Checksums
         uses: softprops/action-gh-release@v1
         with:
           tag_name: "immortalwrt-${{ github.run_number }}"
@@ -83,9 +96,10 @@ jobs:
             immortalwrt/bin/targets/**/*.img.gz
             immortalwrt/bin/targets/**/*.bin
             immortalwrt/bin/targets/**/*.manifest
+            immortalwrt/bin/targets/sha256sums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 9️⃣ 打印编译输出大小
+      # 9️⃣ 查看编译产物大小
       - name: Show Build Size
         run: du -h immortalwrt/bin/targets | sort -h | tail -n 10
