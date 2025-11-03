@@ -52,8 +52,8 @@ jobs:
       - name: Apply Custom Config
         run: |
           cd immortalwrt
-          CONFIG_FILE=".config"
-          cat <<EOF >$CONFIG_FILE
+CONFIG_FILE=".config"
+cat <<EOF >$CONFIG_FILE
 CONFIG_TARGET_x86=y
 CONFIG_TARGET_x86_64=y
 CONFIG_TARGET_x86_64_Generic=y
