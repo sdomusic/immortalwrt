@@ -52,12 +52,8 @@ jobs:
       - name: Apply Custom Config
         run: |
           cd immortalwrt
-          if [ -f ../configs/my.config ]; then
-            cp ../configs/my.config .config
-          else
-            echo "No custom config found, using default minimal config"
-            CONFIG_FILE=".config"
-            cat <<EOF > $CONFIG_FILE
+          CONFIG_FILE=".config"
+          cat <<EOF > $CONFIG_FILE
 CONFIG_TARGET_x86=y
 CONFIG_TARGET_x86_64=y
 CONFIG_TARGET_x86_64_Generic=y
@@ -77,7 +73,6 @@ CONFIG_PACKAGE_kmod-usb-storage=y
 CONFIG_PACKAGE_luci-app-openclash=y
 CONFIG_PACKAGE_luci-i18n-openclash-zh-cn=y
 EOF
-          fi
           make defconfig
 
       - name: Build Firmware
@@ -96,11 +91,11 @@ EOF
         with:
           tag_name: "v24.10.4-${{ github.run_number }}"
           name: "ImmortalWrt v24.10.4 Build #${{ github.run_number }}"
-          files: |
-            immortalwrt/bin/targets/**/*.img.gz
-            immortalwrt/bin/targets/**/*.bin
-            immortalwrt/bin/targets/**/*.manifest
-            immortalwrt/bin/targets/sha256sums.txt
+          files:
+            - immortalwrt/bin/targets/**/*.img.gz
+            - immortalwrt/bin/targets/**/*.bin
+            - immortalwrt/bin/targets/**/*.manifest
+            - immortalwrt/bin/targets/sha256sums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
