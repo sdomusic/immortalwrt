@@ -53,20 +53,19 @@ jobs:
           fi
           make defconfig
 
-      # 6️⃣ 添加自动扩容 overlay 脚本
+      # 6️⃣ 添加自动扩容 overlay 脚本（已修复 YAML 不兼容问题）
       - name: Add Auto Expand Overlay Script
         run: |
           cd immortalwrt
           mkdir -p package/base-files/files/etc/uci-defaults
-          cat > package/base-files/files/etc/uci-defaults/99-expand-overlay <<'EOF'
-#!/bin/sh
-ROOT_DISK=$(find /dev -maxdepth 1 -name "sd*" | grep -v "[0-9]$")
-if [ -n "$ROOT_DISK" ]; then
-    PART=$(lsblk -lnpo NAME,TYPE "$ROOT_DISK" | awk '$2=="part"{print $1}' | tail -n1)
-    resize2fs "$PART" >/dev/null 2>&1
-fi
-EOF
-          chmod +x package/base-files/files/etc/uci-defaults/99-expand-overlay
+          SCRIPT_PATH="package/base-files/files/etc/uci-defaults/99-expand-overlay"
+          echo '#!/bin/sh' > $SCRIPT_PATH
+          echo 'ROOT_DISK=$(find /dev -maxdepth 1 -name "sd*" | grep -v "[0-9]$")' >> $SCRIPT_PATH
+          echo 'if [ -n "$ROOT_DISK" ]; then' >> $SCRIPT_PATH
+          echo '    PART=$(lsblk -lnpo NAME,TYPE "$ROOT_DISK" | awk '\''$2=="part"{print $1}'\'' | tail -n1)' >> $SCRIPT_PATH
+          echo '    resize2fs "$PART" >/dev/null 2>&1' >> $SCRIPT_PATH
+          echo 'fi' >> $SCRIPT_PATH
+          chmod +x $SCRIPT_PATH
 
       # 7️⃣ 开始编译
       - name: Build Firmware
